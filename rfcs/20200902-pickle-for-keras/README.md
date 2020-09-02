@@ -2,8 +2,8 @@
 
 | Status        | (Proposed / Accepted / Implemented / Obsolete)       |
 :-------------- |:---------------------------------------------------- |
-| **RFC #**     | [286](https://github.com/tensorflow/community/pull/286)
-| **Author(s)** | Adrian Garcia Badaracco ({firstname}@{firstname}gb.com)
+| **RFC #**     | [286](https://github.com/tensorflow/community/pull/286) |
+| **Author(s)** | Adrian Garcia Badaracco ({firstname}@{firstname}gb.com), Scott Sievert (tf-rfc@stsievert.com)  |
 | **Sponsor**   | Mihai Maruseac (mihaimaruseac@google.com)                 |
 | **Updated**   | 2020-09-02                                           |
 
@@ -13,18 +13,33 @@ Implement support for Python's Pickle protocol within Keras.
 
 ## Motivation
 
-The pickle protocol is used extensively
-within the Python ecosystem, including by [Dask](https://github.com/dask/dask),
-[Scikit-Learn](https://github.com/scikit-learn/scikit-learn) and several other
-popular machine learning libraries. These libraries rely on the pickle protocol and
-cannot work without it. This hinders what would otherwise be great uses of Keras.
+> *Why this is a valuable problem to solve? What background information is needed
+to show how this design addresses the problem?*
+The specific motivation
+for this RFC comes from supporting Keras models in Dask-ML's and Ray's hyperparameter
+optimization. More generaly, support for serialization with the Pickle protocol will enable:
 
-Pickle and `copy` (referring to the specific Python module, it can use
-the pickle protocol as it's backend) are also the _only_ universal way to
-save Python objects. This means that this is what most users try first.
-As evidenced by several of the StackOverflow/TensorFlow issues below, even if there are
-TensorFlow specific ways to copy things in memory or disk, users will probably
-try pickle or copy first and be confused by cryptic errors.
+* Using Keras with distributed systems (e.g, Python's `multiprocessing`, Dask, Ray or IPython parallel).
+* Copying Keras models with Python's built-in `copy.deepcopy`.
+
+This request is *not* advocating for use of Pickle while saving or sharing
+Keras models. We believe the efficient, secure and stable methods in TF should be
+used for that. We are proposing to add a Pickle implementation that uses the same efficient method.
+This will enable wider usage in the Python ecosystem.
+
+> *Which users are affected by the problem? Why is it a problem? What data supports
+this? What related work exists?*
+Users trying to use distributed systems (e.g, Ray or Dask) with Keras are 
+affected. In our experience, this is common in hyperparameter optimization.
+
+Related work is in [SciKeras], which brings a Scikit-Learn API
+to Keras. Scikit-Learn estimators must be able to be pickled ([source][skp]). As such,
+SciKeras has an implementation of `__reduce_ex__`, which is also in
+[tensorflow#39609].
+
+[tensorflow#39609]:https://github.com/tensorflow/tensorflow/pull/39609
+[SciKeras]:https://github.com/adriangb/scikeras
+[skp]:https://github.com/scikit-learn/scikit-learn/blob/0fb307bf39bbdacd6ed713c00724f8f871d60370/sklearn/utils/estimator_checks.py#L1523-L1524
 
 Here are several examples
 of Keras users running into issues because pickle is not supported.
@@ -52,9 +67,16 @@ Here is an post describing how PyTorch ran into similar issues and how they reso
 
 ## User Benefit
 
-* Lessen the learning curve for new Keras/TF users since they will be able to
-use entry points they already know.
-* Improve compatibility with libraries like Scikit-Learn and Dask.
+> How will users (or other contributors) benefit from this work? What would be the headline in the release notes or blog post?
+
+One blog post headline: "Keras models can be used in advanced hyperparameter optimization with Ray Tune or Dask-ML."
+
+Users will notice:
+
+* Improved compatibility with libraries like Scikit-Learn and Dask.
+* Smaller learning curve for new Keras/TF users since they will be able to
+use entry points they already know and simultaneously access TFs high performance
+internal methods.
 
 ## Design Proposal
 
