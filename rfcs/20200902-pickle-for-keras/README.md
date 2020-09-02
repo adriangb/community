@@ -48,6 +48,8 @@ Examples that could be resolved using `Model.save` (but the user tried pickle fi
 
 * [SO #51878627](https://stackoverflow.com/questions/51878627/pickle-keras-ann)
 
+Here is an post describing how PyTorch ran into similar issues and how they resolved them: [link](https://matthewrocklin.com/blog/work/2018/07/23/protocols-pickle)
+
 ## User Benefit
 
 * Lessen the learning curve for new Keras/TF users since they will be able to
@@ -98,7 +100,9 @@ Solution (2) would look something like this (assuming `Model.save` worked with `
 class Model:
 
     def __reduce_ex__(self, protocol):
-        return tf.keras.models.load_model, (self.save(io.BytesIO()),)
+        b = io.BytesIO()
+        self.save(b)
+        return load_model, (b.get_value()),)  # where load_model is tf.keras.models.load_model
 ```
 
 By implementing this in all of Keras' base classes, things will automatically work
