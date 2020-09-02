@@ -9,80 +9,161 @@
 
 ## Objective
 
-Implement support for Python's Pickle protocol. This protocol is used extensively
-within the Python ecosystem 
+Implement support for Python's Pickle protocol within Keras.
 
 ## Motivation
 
-Why this is a valuable problem to solve? What background information is needed
-to show how this design addresses the problem?
+The pickle protocol is used extensively
+within the Python ecosystem, including by [Dask](https://github.com/dask/dask),
+[Scikit-Learn](https://github.com/scikit-learn/scikit-learn) and several other
+popular machine learning libraries. These libraries rely on the pickle protocol and
+cannot work without it. This hinders what would otherwise be great uses of Keras.
 
-Which users are affected by the problem? Why is it a problem? What data supports
-this? What related work exists?
+Pickle and `copy` (referring to the specific Python module, it can use
+the pickle protocol as it's backend) are also the _only_ universal way to
+save Python objects. This means that this is what most users try first.
+As evidenced by several of the StackOverflow/TensorFlow issues below, even if there are
+TensorFlow specific ways to copy things in memory or disk, users will probably
+try pickle or copy first and be confused by cryptic errors.
+
+Here are several examples
+of Keras users running into issues because pickle is not supported.
+
+GH issues where `Model.save` would not work:
+
+* [TF#34697](https://github.com/tensorflow/tensorflow/issues/34697)
+* [TF#33204](https://github.com/tensorflow/tensorflow/issues/33204)
+* TODO: issues from Dask
+
+StackOverflow questions where `Model.save` would not work:
+
+* [SO#59872509](https://stackoverflow.com/questions/59872509/how-to-export-a-model-created-from-kerasclassifier-and-gridsearchcv-using-joblib)
+* [SO#37984304](https://stackoverflow.com/questions/37984304/how-to-save-a-scikit-learn-pipline-with-keras-regressor-inside-to-disk)
+* [SO#51110834](https://stackoverflow.com/questions/51110834/cannot-pickle-dill-a-keras-object)
+* [SO#54070845](https://stackoverflow.com/questions/54070845/how-to-pickle-keras-custom-layer)
+* [SO#40396042](https://stackoverflow.com/questions/40396042/how-to-save-scikit-learn-keras-model-into-a-persistence-file-pickle-hd5-json-ya)
+* [SO#48295661](https://stackoverflow.com/questions/48295661/how-to-pickle-keras-model)
+  
+Examples that could be resolved using `Model.save` (but the user tried pickle first):
+
+* [SO #51878627](https://stackoverflow.com/questions/51878627/pickle-keras-ann)
 
 ## User Benefit
 
-How will users (or other contributors) benefit from this work? What would be the
-headline in the release notes or blog post?
+* Lessen the learning curve for new Keras/TF users since they will be able to
+use entry points they already know.
+* Improve compatibility with libraries like Scikit-Learn and Dask.
 
 ## Design Proposal
 
-This is the meat of the document, where you explain your proposal. If you have
-multiple alternatives, be sure to use sub-sections for better separation of the
-idea, and list pros/cons to each approach. If there are alternatives that you
-have eliminated, you should also list those here, and explain why you believe
-your chosen approach is superior.
+The pickle protocol supports two distinct functions:
 
-Make sure you’ve thought through and addressed the following sections. If a section is not relevant to your specific proposal, please explain why, e.g. your RFC addresses a convention or process, not an API.
+1. In-memory copying of live objects: via Python's `copy` module. This falls back to (2) below.
+2. Serialization to arbitrary IO (memory or disk): via Python's `pickle` module.
 
+This proposal seeks to take the conservative approach at least initially and only
+implement (2) above since (1) can always fall back to (2) and using only (2) alleviates
+any concerns around references to freed memory in the C++ portions of TF and other such bugs.
+
+This said, for situations where the user is making an in-memory copy of an object and it might
+even be okay to keep around references to non-Python objects, a separate approach that optimizes
+(1) would be warranted. This RFC does not seek to address this problem. Hence this RFC is generally
+not concerned with:
+
+* Issues arising from C++ references. These cannot be kept around when serializing to a binary file stream.
+* Performance of the serialization/deserialization.
+
+The general proposal is to implement the pickle protocol using existing Keras saving functionality
+as a backend. For example, adding pickle/copy support to Metrics is as simple as:
+
+```python3
+class Metric:  # in tf.keras.metrics
+
+    def __reduce_ex__(self, protocol):
+        return deserialize, (serialize(metric),)  # where deserialize is tf.keras.metrics.deserialize
+```
+
+Documentation for how to use `__reduce__ex__` and other alternatives that allow implementing of
+the pickle protocol can be found [here](https://docs.python.org/3/library/pickle.html) and
+[here](https://docs.python.org/3/library/copyreg.html) (official Python docs).
+
+For more complex objects (namely `tf.keras.Model`) we can either:
+
+1. Implement a similar approach, but we would need to save the weights and config separately. See [this notebook](https://colab.research.google.com/drive/14ECRN8ZQDa1McKri2dctlV_CaPkE574I?authuser=1#scrollTo=qlXDfJObNXVf) for an example.
+2. Use `Model.save` as the backend. This would require implementing support for serializing to memory in `Model.save`, but is overall a better solution (since `Model.save` is the official way to save models in `tf.keras`)
+
+Solution (2) would look something like this (assuming `Model.save` worked with `io.BytesIO()`):
+
+```python3
+class Model:
+
+    def __reduce_ex__(self, protocol):
+        return tf.keras.models.load_model, (self.save(io.BytesIO()),)
+```
+
+By implementing this in all of Keras' base classes, things will automatically work
+with custom metrics and subclassed models.
 
 ### Alternatives Considered
-* Make sure to discuss the relative merits of alternatives to your proposal.
+
+The only real alternative is to:
+
+1. Ask all libraries that currently use pickle to make a special case for each Keras object and figure out how each Keras object prefers to be serialized (see use of `serialize` vs `Model.save` above).
+2. Ask all users to learn the above as well.
+3. Override `__reduce_ex__` to give a user friendly warning instead of failing cryptically.
 
 ### Performance Implications
-* Do you expect any (speed / memory)? How will you confirm?
-* There should be microbenchmarks. Are there?
-* There should be end-to-end tests and benchmarks. If there are not (since this is still a design), how will you track that these will be created?
+
+* The performance should be the same as the underlying backend that is already implemented in TF.
+* For cases where the user was going to pickle anyway, this will be faster because it uses TF's methods instead of letting Python deal with it naively.
+* Tests will consist of running `new_model = pickle.loads(pickle.loads(model))` and then doing checks on `new_model`.
 
 ### Dependencies
-* Dependencies: does this proposal add any new dependencies to TensorFlow?
-* Dependent projects: are there other areas of TensorFlow or things that use TensorFlow (TFX/pipelines, TensorBoard, etc.) that this affects? How have you identified these dependencies and are you sure they are complete? If there are dependencies, how are you managing those changes?
+
+* Dependencies: does this proposal add any new dependencies to TensorFlow? **NO**
+* Dependent projects: are there other areas of TensorFlow or things that use TensorFlow (TFX/pipelines, TensorBoard, etc.) that this affects? **This should not affect anything**
 
 ### Engineering Impact
-* Do you expect changes to binary size / startup time / build time / test times?
+
+* Do you expect changes to binary size / startup time / build time / test times? **NO**
 * Who will maintain this code? Is this code in its own buildable unit? Can this code be tested in its own? Is visibility suitably restricted to only a small API surface for others to use?
 
+This code depends on existing Keras/TF methods. As long as those are maintained and don't break, this code will not break. The new API surface area is very small.
+
 ### Platforms and Environments
+
 * Platforms: does this work on all platforms supported by TensorFlow? If not, why is that ok? Will it work on embedded/mobile? Does it impact automatic code generation or mobile stripping tooling? Will it work with transformation tools?
 * Execution environments (Cloud services, accelerator hardware): what impact do you expect and how will you confirm?
 
+This will work on anything that is running Python >= 2.7 (as far as I can tell, the pickle protocol has not changed since then).
+
 ### Best Practices
-* Does this proposal change best practices for some aspect of using/developing TensorFlow? How will these changes be communicated/enforced?
+
+* Does this proposal change best practices for some aspect of using/developing TensorFlow? How will these changes be communicated/enforced? **NO**
 
 ### Tutorials and Examples
-* If design changes existing API or creates new ones, the design owner should create end-to-end examples (ideally, a tutorial) which reflects how new feature will be used. Some things to consider related to the tutorial:
-    - The minimum requirements for this are to consider how this would be used in a Keras-based workflow, as well as a non-Keras (low-level) workflow. If either isn’t applicable, explain why.
-    - It should show the usage of the new feature in an end to end example (from data reading to serving, if applicable). Many new features have unexpected effects in parts far away from the place of change that can be found by running through an end-to-end example. TFX [Examples](https://github.com/tensorflow/tfx/tree/master/tfx/examples) have historically been good in identifying such unexpected side-effects and are as such one recommended path for testing things end-to-end.
-    - This should be written as if it is documentation of the new feature, i.e., consumable by a user, not a TensorFlow developer. 
-    - The code does not need to work (since the feature is not implemented yet) but the expectation is that the code does work before the feature can be merged. 
+
+There are plenty of examples of how this can and would be used within all of the issues above, in addition to the linked notebook
+([link again](https://colab.research.google.com/drive/14ECRN8ZQDa1McKri2dctlV_CaPkE574I?authuser=1#scrollTo=qlXDfJObNXVf)) which has
+end to end implementations and tests for all of this.
 
 ### Compatibility
-* Does the design conform to the backwards & forwards compatibility [requirements](https://www.tensorflow.org/programmers_guide/version_compat)?
+
+* Does the design conform to the backwards & forwards compatibility [requirements](https://www.tensorflow.org/programmers_guide/version_compat)? **YES**
+  
 * How will this proposal interact with other parts of the TensorFlow Ecosystem?
-    - How will it work with TFLite?
-    - How will it work with distribution strategies?
-    - How will it interact with tf.function?
-    - Will this work on GPU/TPU?
-    - How will it serialize to a SavedModel?
+      - How will it work with TFLite?  *N/A*
+      - How will it work with distribution strategies?  *N/A*
+      - How will it interact with tf.function?  *N/A*
+      - Will this work on GPU/TPU?  *N/A*
+      - How will it serialize to a SavedModel? *Circular question...*
 
 ### User Impact
+
 * What are the user-facing changes? How will this feature be rolled out?
 
-## Detailed Design
-
-This section is optional. Elaborate on details if they’re important to
-understanding the design, but would make it hard to read the proposal section
-above.
+We implement it and are done. I do not think there is any need to edit the docs to advertise this feature. We still want
+users to use `Model.save` when they are trying to save their model.
 
 ## Questions and Discussion Topics
 
