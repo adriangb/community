@@ -100,10 +100,12 @@ Solution (2) would look something like this (assuming `Model.save` worked with `
 class Model:
 
     def __reduce_ex__(self, protocol):
-        b = io.BytesIO()
-        self.save(b)
+        b = io.BytesIO()  # python built in library
+        self.save(b)  # i.e. tf.keras.Model.save
         return load_model, (b.get_value()),)  # where load_model is tf.keras.models.load_model
 ```
+
+Note how this exactly mirrors the aforementioned blog post regarding PyTorch ([link](https://matthewrocklin.com/blog/work/2018/07/23/protocols-pickle)).
 
 By implementing this in all of Keras' base classes, things will automatically work
 with custom metrics and subclassed models.
