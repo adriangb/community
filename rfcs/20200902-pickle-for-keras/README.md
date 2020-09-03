@@ -130,6 +130,8 @@ class Model:
 ```
 
 Note how this exactly mirrors the aforementioned blog post regarding PyTorch ([link](https://matthewrocklin.com/blog/work/2018/07/23/protocols-pickle)).
+This would however require extensive work to refactor the entire SaveModel ecosystem to allow the user to specify
+a file-like object instead of only a folder name.
 
 By implementing this in all of Keras' base classes, things will automatically work
 with custom metrics and subclassed models.
@@ -182,18 +184,18 @@ end to end implementations and tests for all of this.
 * Does the design conform to the backwards & forwards compatibility [requirements](https://www.tensorflow.org/programmers_guide/version_compat)? **YES**
   
 * How will this proposal interact with other parts of the TensorFlow Ecosystem?
-      - How will it work with TFLite?  *N/A*
-      - How will it work with distribution strategies?  *N/A*
-      - How will it interact with tf.function?  *N/A*
-      - Will this work on GPU/TPU?  *N/A*
-      - How will it serialize to a SavedModel? *Circular question...*
+  * How will it work with TFLite?  *N/A*
+  * How will it work with distribution strategies?  *N/A*
+  * How will it interact with tf.function?  *N/A*
+  * Will this work on GPU/TPU?  *N/A*
+  * How will it serialize to a SavedModel? *Circular question...*
 
 ### User Impact
 
 * What are the user-facing changes? How will this feature be rolled out?
 
-We implement it and are done. I do not think there is any need to edit the docs to advertise this feature. We still want
-users to use `Model.save` when they are trying to save their model.
+We just have to implement this. I do not think there is any need to edit the docs to advertise this feature.
+We still want users to use `Model.save` when they are trying to save their model.
 
 ## Questions and Discussion Topics
 
