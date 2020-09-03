@@ -15,6 +15,7 @@ Implement support for Python's Pickle protocol within Keras.
 
 > *Why this is a valuable problem to solve? What background information is needed
 to show how this design addresses the problem?*
+
 The specific motivation
 for this RFC comes from supporting Keras models in Dask-ML's and Ray's hyperparameter
 optimization. More generaly, support for serialization with the Pickle protocol will enable:
@@ -29,6 +30,7 @@ This will enable wider usage in the Python ecosystem.
 
 > *Which users are affected by the problem? Why is it a problem? What data supports
 this? What related work exists?*
+
 Users trying to use distributed systems (e.g, Ray or Dask) with Keras are 
 affected. In our experience, this is common in hyperparameter optimization.
 
