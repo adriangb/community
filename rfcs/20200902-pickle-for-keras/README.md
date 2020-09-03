@@ -31,8 +31,13 @@ serialization with the Pickle protocol will enable:
 Supporting Pickle will enable wider usage in the Python ecosystem. Ecosystems
 of libraries depend strongly on the presence of protocols, and a strong
 consensus around implementing them consistently and efficiently. See "[Pickle
-isn't slow, it's a protocol]" for more detail. Notably, this post focuses on
-having an efficent Pickle implementation for PyTorch.
+isn't slow, it's a protocol]" for more detail (notably, this post focuses on
+having an efficent Pickle implementation for PyTorch). Without these protocols,
+it's necessary for each library to implement a custom serialization method
+(e.g, Dask Distributed has a custom serialization method at
+[distributed/protocol/keras.py])
+
+[distributed/protocol/keras.py]:https://github.com/dask/distributed/blob/73fa9bd1bd7dcb4ceed72cdbdc6dd4b92f887521/distributed/protocol/keras.py
 
 This request is *not* advocating for use of Pickle while saving or sharing
 Keras models. We believe the efficient, secure and stable methods in TF should
@@ -110,7 +115,82 @@ This RFC would resolve these issues.
 
 ## Design Proposal
 
-The pickle protocol supports two distinct functions:
+The general proposal is to implement the pickle protocol using existing Keras
+saving functionality as a backend. For example, adding pickle to TF Metrics
+is as simple as the following:
+
+``` python
+from tf.keras.metrics import Metric, serialize, deserialize
+
+class NewMetric(Metric):
+    def __reduce__(self, protocol):
+        return deserialize, (serialize(self),)
+```
+
+This implementation adds support for the Pickle protocol, which supports serialization
+to arbitrary IO, either memory or disk. The `__reduce__` special method can return
+the string that would have been written to disk and the function to load that string into memory ([docs][reduce_docs]).
+Now, the tests pass with `NewMetric`:
+
+[reduce_docs]:https://docs.python.org/3/library/pickle.html#object.__reduce__
+
+``` python
+import pickle
+m1 = NewMetric()  # TODO: is this correct?
+
+m2 = pickle.loads(pickle.dumps(m1))
+assert m1 == m2  # TODO: or some other check
+```
+
+For more complex objects like `tf.keras.Model`, there are two options with `__reduce__`:
+
+1. Implement a similar approach that saves the weights and
+   config separately ([notebook example]).
+2. Use `Model.save` as the backend.
+
+Option (1) is similar to Dask Distributed's custom serialization of Keras models in [distributed/protocol/keras.py]. Option 2 would require implementing support for
+serializing to memory in `Model.save`.
+
+Option (2) is preferred because it seems to be a better solution
+since `Model.save` is the recommended method for model persistence.
+It would look something like the following, if `Model.save` worked
+with `io.BytesIO()`:
+   
+[notebook example]:https://colab.research.google.com/drive/14ECRN8ZQDa1McKri2dctlV_CaPkE574I?authuser=1#scrollTo=qlXDfJObNXVf
+
+
+``` python
+# tensorflow/python/.../model.py  TODO make sure correct
+import io
+from tf.keras.models import load_model
+
+class Model:
+    ...
+
+    def __reduce__(self):
+        b = io.BytesIO()
+        self.save(b)
+        return (load_model, (b.get_value(), ))
+```
+
+This almost exactly mirrors the PyTorch implementation of Pickle support in [pytorch#9184]
+as mentioned in "[Pickle isn't slow, it's a protocol]."
+This would however require extensive work to refactor the entire SaveModel
+ecosystem to allow the user to specify a file-like object instead of only a
+folder name.
+
+[pytorch#9184]:https://github.com/pytorch/pytorch/pull/9184
+
+### Alternatives Considered
+
+Of course, one method is to ask users to monkey-patch Keras models themselves.
+This would hold for libraries too. Clearly, this is unreasonable. Regardless,
+some libraries like Dask Distributed have already implemented custom serialization
+protocols ([distributed/protocol/keras.py]).
+
+#### Other pickle implementations
+
+The Pickle protocol supports two features:
 
 1. In-memory copying of live objects: via Python's `copy` module. This falls back to (2) below.
 2. Serialization to arbitrary IO (memory or disk): via Python's `pickle` module.
@@ -129,62 +209,6 @@ this RFC is generally not concerned with:
   serializing to a binary file stream.
 * Performance of the serialization/deserialization.
 
-The general proposal is to implement the pickle protocol using existing Keras
-saving functionality
-as a backend. For example, adding pickle/copy support to Metrics is as simple as:
-
-```python3
-class Metric:  # in tf.keras.metrics
-
-    def __reduce_ex__(self, protocol):
-        return deserialize, (serialize(metric),)  # where deserialize is tf.keras.metrics.deserialize
-```
-
-Documentation for how to use `__reduce__ex__` and other alternatives that allow implementing of
-the pickle protocol can be found [here](https://docs.python.org/3/library/pickle.html) and
-[here](https://docs.python.org/3/library/copyreg.html) (official Python docs).
-
-For more complex objects (namely `tf.keras.Model`) we can either:
-
-1. Implement a similar approach, but we would need to save the weights and
-   config separately. See [this
-   notebook](https://colab.research.google.com/drive/14ECRN8ZQDa1McKri2dctlV_CaPkE574I?authuser=1#scrollTo=qlXDfJObNXVf)
-   for an example.
-2. Use `Model.save` as the backend. This would require implementing support for
-   serializing to memory in `Model.save`, but is overall a better solution
-   (since `Model.save` is the official way to save models in `tf.keras`)
-
-Solution (2) would look something like this (assuming `Model.save` worked with `io.BytesIO()`):
-
-```python3
-class Model:
-
-    def __reduce_ex__(self, protocol):
-        b = io.BytesIO()  # python built in library
-        self.save(b)  # i.e. tf.keras.Model.save
-        return load_model, (b.get_value()),)  # where load_model is tf.keras.models.load_model
-```
-
-Note how this exactly mirrors the aforementioned blog post regarding PyTorch
-([link](https://matthewrocklin.com/blog/work/2018/07/23/protocols-pickle)).
-This would however require extensive work to refactor the entire SaveModel
-ecosystem to allow the user to specify a file-like object instead of only a
-folder name.
-
-By implementing this in all of Keras' base classes, things will automatically work
-with custom metrics and subclassed models.
-
-### Alternatives Considered
-
-The only real alternative is to:
-
-1. Ask all libraries that currently use pickle to make a special case for each
-   Keras object and figure out how each Keras object prefers to be serialized
-   (see use of `serialize` vs `Model.save` above).
-2. Ask all users to learn the above as well.
-3. Override `__reduce_ex__` to give a user friendly warning instead of failing
-   cryptically.
-
 ### Performance Implications
 
 * The performance should be the same as the underlying backend that is already
@@ -196,22 +220,23 @@ The only real alternative is to:
 
 ### Dependencies
 
-* Dependencies: does this proposal add any new dependencies to TensorFlow? **NO**
+* Dependencies: does this proposal add any new dependencies to TensorFlow?
+    * No
 * Dependent projects: are there other areas of TensorFlow or things that use
-  TensorFlow (TFX/pipelines, TensorBoard, etc.) that this affects? **This
-  should not affect anything**
+  TensorFlow (TFX/pipelines, TensorBoard, etc.) that this affects?
+    * This should not affect those libraries. It will affect libraries
+      further downstream like Dask-ML and Ray Tune.
 
 ### Engineering Impact
 
 * Do you expect changes to binary size / startup time / build time / test
-  times? **NO**
+  times?
+    * No
 * Who will maintain this code? Is this code in its own buildable unit? Can this
   code be tested in its own? Is visibility suitably restricted to only a small
   API surface for others to use?
-
-This code depends on existing Keras/TF methods. As long as those are maintained
-and don't break, this code will not break. The new API surface area is very
-small.
+    * This code depends on existing Keras/TF methods. This code will not break
+      presuming they are maintained (the new API surface area is very small).
 
 ### Platforms and Environments
 
@@ -219,16 +244,16 @@ small.
   why is that ok? Will it work on embedded/mobile? Does it impact automatic
   code generation or mobile stripping tooling? Will it work with transformation
   tools?
+    * Yes, as long as a Python backend is available.
 * Execution environments (Cloud services, accelerator hardware): what impact do
   you expect and how will you confirm?
-
-This will work on anything that is running Python >= 2.7 (as far as I can tell,
-the pickle protocol has not changed since then).
+    * We don't see any impact.
 
 ### Best Practices
 
 * Does this proposal change best practices for some aspect of using/developing
-  TensorFlow? How will these changes be communicated/enforced? **NO**
+  TensorFlow? How will these changes be communicated/enforced?
+    * No
 
 ### Tutorials and Examples
 
@@ -240,16 +265,20 @@ end to end implementations and tests for all of this.
 
 * Does the design conform to the backwards & forwards compatibility
   [requirements](https://www.tensorflow.org/programmers_guide/version_compat)?
-  **YES**
-  
-* How will this proposal interact with other parts of the TensorFlow Ecosystem?
-    * How will it work with TFLite?  *N/A*
-    * How will it work with distribution strategies?
-      *N/A, unlesss the model is still being trained. Then, this enables custom 
-      serialization methods, which might enable support for other distribution strategies.*
-    * How will it interact with tf.function?  *N/A*
-    * Will this work on GPU/TPU?  *N/A*
-    * How will it serialize to a SavedModel? *Not applicable, and almost a circular question.*
+    * Yes
+
+> *How will this proposal interact with other parts of the TensorFlow Ecosystem?*
+
+* How will it work with TFLite?
+    * N/A
+* How will it work with distribution strategies?
+  * This enables use of other serialization libraries, which might enable support for other distribution strategies.
+* How will it interact with tf.function?
+    * N/A
+* Will this work on GPU/TPU?
+    * N/A
+* How will it serialize to a SavedModel?
+    * Not applicable, and almost a circular question.
 
 ### User Impact
 
