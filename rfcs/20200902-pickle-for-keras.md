@@ -1,6 +1,6 @@
-# Title of RFC
+# Implement Python's Pickle Protocol
 
-| Status        | (Proposed / Accepted / Implemented / Obsolete)       |
+| Status        | Proposed       |
 :-------------- |:---------------------------------------------------- |
 | **RFC #**     | [286](https://github.com/tensorflow/community/pull/286) |
 | **Author(s)** | Adrian Garcia Badaracco ({firstname}@{firstname}gb.com), Scott Sievert (tf-rfc@stsievert.com)  |
