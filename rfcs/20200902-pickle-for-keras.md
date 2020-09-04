@@ -30,10 +30,10 @@ with the Pickle protocol will enable:
 Supporting Pickle will enable wider usage in the Python ecosystem because
 Python's ecosystems of libraries depend strongly on the presence of protocols.
 Without these protocols, it's necessary for each library to implement a custom
-serialization method. For example, Dask Distributed has a custom serialization
-method for Keras at [distributed/protocol/keras.py].  See "[Pickle isn't slow,
-it's a protocol]" for more detail (notably, this post focuses on having an
-efficient Pickle implementation for PyTorch).
+serialization method for every other library. For example, Dask Distributed has
+a custom serialization method for Keras at [distributed/protocol/keras.py].
+See "[Pickle isn't slow, it's a protocol]" for more detail (notably, this post
+focuses on having an efficient Pickle implementation for PyTorch).
 
 [distributed/protocol/keras.py]:https://github.com/dask/distributed/blob/73fa9bd1bd7dcb4ceed72cdbdc6dd4b92f887521/distributed/protocol/keras.py
 
