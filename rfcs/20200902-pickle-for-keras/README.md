@@ -16,15 +16,14 @@ Implement support for Python's Pickle protocol within Keras.
 > *Why this is a valuable problem to solve? What background information is needed
 to show how this design addresses the problem?*
 
-The specific motivation for this RFC comes from supporting Keras models in
+The specific motivation for this RFC: we want to use Keras models in
 Dask-ML's and Ray's hyperparameter optimization. More generaly, support for
 serialization with the Pickle protocol will enable:
 
-* Using Keras with distributed systems and custom parallelization
-  strategies/libraries (e.g, Python's `multiprocessing`, Dask, Ray or IPython
-  parallel).
-* Saving Keras models to disk with custom serialization libraries (Joblib,
-  Dill, etc), which is most common when using a Keras model as part of a
+* Using Keras with other parallelization libraries like Python's
+  `multiprocessing`, Dask, Ray or IPython parallel.
+* Saving Keras models to disk with custom serialization libraries like Joblib or
+  Dill. This is common when using a Keras model as part of a
   Scikit-Learn pipeline or with their hyperparameter searches.
 * Copying Keras models with Python's built-in `copy.deepcopy`.
 
@@ -34,15 +33,15 @@ consensus around implementing them consistently and efficiently. See "[Pickle
 isn't slow, it's a protocol]" for more detail (notably, this post focuses on
 having an efficent Pickle implementation for PyTorch). Without these protocols,
 it's necessary for each library to implement a custom serialization method
-(e.g, Dask Distributed has a custom serialization method at
+(e.g, Dask Distributed has a custom serialization method for Keras at
 [distributed/protocol/keras.py])
 
 [distributed/protocol/keras.py]:https://github.com/dask/distributed/blob/73fa9bd1bd7dcb4ceed72cdbdc6dd4b92f887521/distributed/protocol/keras.py
 
 This request is *not* advocating for use of Pickle while saving or sharing
 Keras models. We believe the efficient, secure and stable methods in TF should
-be used for that. We are proposing to add a Pickle implementation that uses the
-same efficient method.
+be used for that. Instead, we are proposing to add a Pickle implementation to
+support wider usage in the Python ecosystem.
 
 [Pickle isn't slow, it's a protocol]:https://matthewrocklin.com/blog/work/2018/07/23/protocols-pickle
 
@@ -52,9 +51,17 @@ this? What related work exists?*
 Users trying to use distributed systems (e.g, Ray or Dask) with Keras are 
 affected. In our experience, this is common in hyperparameter optimization.  In
 general, having Pickle support means a better experience, especially when using
-Keras with other libraries. Briefly, this when using a Keras model in
-a Scikit-Learn pipeline or when using a custom parallelization like Joblib or Dask.
-Detail is give in "User Benefit."
+Keras with other libraries. Briefly, implementation of this RFC will make the following possible:
+
+* Saving a Scikit-Learn pipeline to disk if it includes a Keras model
+* Using custom parallelization like Joblib or Dask.
+
+More use cases and examples are give in "User Benefit."
+
+Related work is in [SciKeras], which brings a Scikit-Learn API
+to Keras. Pickle is relevant because Scikit-Learn requires that estimators must be able to be pickled ([source][skp]).
+As such, SciKeras has an implementation of `__reduce_ex__`, which is also in
+[tensorflow#39609].
   
 [dask-ml#534]:https://github.com/dask/dask-ml/issues/534
 [SO#51110834]:https://stackoverflow.com/questions/51110834/cannot-pickle-dill-a-keras-object
@@ -65,12 +72,6 @@ Detail is give in "User Benefit."
 [skper]:https://scikit-learn.org/stable/modules/model_persistence.html#persistence-example
 [TF#33204]:https://github.com/tensorflow/tensorflow/issues/33204
 [TF#34697]:https://github.com/tensorflow/tensorflow/issues/34697
- 
-
-Related work is in [SciKeras], which brings a Scikit-Learn API
-to Keras. Scikit-Learn estimators must be able to be pickled ([source][skp]).
-As such, SciKeras has an implementation of `__reduce_ex__`, which is also in
-[tensorflow#39609].
 
 [tensorflow#39609]:https://github.com/tensorflow/tensorflow/pull/39609
 [SciKeras]:https://github.com/adriangb/scikeras
@@ -91,20 +92,20 @@ Examples that could be resolved using `Model.save` (but the user tried pickle fi
 
 > How will users (or other contributors) benefit from this work? What would be the headline in the release notes or blog post?
 
-One blog post headline: "Keras models can be used in advanced hyperparameter
-optimization with Ray Tune or Dask-ML."
+One blog post headline: "Keras models can be used with the advanced 
+hyperparameter optimization techniques found in Dask-ML and Ray Tune."
 
 Users will also benefit with easier usage; they won't run into any of these
 errors:
 
-* Scikit-Learn recommends using Joblib for model persistence ([source][skper]).
-  That means people try to save Scikit-Learn estimators to disk with Joblib.
+* People try to save Scikit-Learn meta-estimators with Keras components using
+  the serialization libraries Joblib or Dill. 
   This fails because Keras models can not be serialized without a custom
-  method.  Examples of failures include [SO#59872509], [SO#37984304] and
-  [SO#48295661], and [SO#51110834] uses a different serialization library (dill).
+  method. Examples include [SO#59872509], [SO#37984304] and
+  [SO#48295661], and [SO#51110834].
 * Using custom parallelization strategies requires serialization support through
-  Pickle; however, many parallelization libraries like Joblib and Dask don't
-  special case Keras models. Relevant errors are most common in hyperparameter
+  Pickle; however, many parallelization libraries don't
+  special case Keras models (e.g, Joblib). Relevant errors are most common in hyperparameter
   optimization with Scikit-Learn's parallelization through Joblib
   ([TF#33204] and [TF#34697]) or parallelization through Dask ([dask-ml#534]).
 * Lack of Pickle support can complicate saving training history like in
@@ -115,8 +116,8 @@ This RFC would resolve these issues.
 
 ## Design Proposal
 
-The general proposal is to implement the pickle protocol using existing Keras
-saving functionality as a backend. For example, adding pickle to TF Metrics
+We propose implementing the Pickle protocol using the existing Keras
+saving functionality as a backend. For example, adding pickle support to TF Metrics
 is as simple as the following:
 
 ``` python
@@ -170,7 +171,7 @@ class Model:
     def __reduce__(self):
         b = io.BytesIO()
         self.save(b)
-        return (load_model, (b.get_value(), ))
+        return load_model, (b.get_value(), )
 ```
 
 This almost exactly mirrors the PyTorch implementation of Pickle support in [pytorch#9184]
@@ -215,7 +216,7 @@ this RFC is generally not concerned with:
   implemented in TF.
 * For cases where the user was going to pickle anyway, this will be faster
   because it uses TF's methods instead of letting Python deal with it naively.
-* Tests will consist of running `new_model = pickle.loads(pickle.loads(model))`
+* Tests will consist of running `new_model = pickle.loads(pickle.dumps(model))`
   and then doing checks on `new_model`.
 
 ### Dependencies
