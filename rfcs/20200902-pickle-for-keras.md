@@ -17,7 +17,7 @@ Implement support for Python's Pickle protocol within Keras.
 > needed to show how this design addresses the problem?*
 
 The specific motivation for this RFC: we want to use Keras models in Dask-ML's
-and Ray's hyperparameter optimization. More generaly, support for serialization
+and Ray's hyperparameter optimization. More generally, support for serialization
 with the Pickle protocol will enable:
 
 * Using Keras with other parallelization libraries like Python's
@@ -30,7 +30,7 @@ with the Pickle protocol will enable:
 Supporting Pickle will enable wider usage in the Python ecosystem because
 ecosystems of libraries depend strongly on the presence of protocols. See
 "[Pickle isn't slow, it's a protocol]" for more detail (notably, this post
-focuses on having an efficent Pickle implementation for PyTorch). Without these
+focuses on having an efficient Pickle implementation for PyTorch). Without these
 protocols, it's necessary for each library to implement a custom serialization
 method. For example, Dask Distributed has a custom serialization method for
 Keras at [distributed/protocol/keras.py].
@@ -177,7 +177,7 @@ class Model:
 
 This almost exactly mirrors the PyTorch implementation of Pickle support in [pytorch#9184]
 as mentioned in "[Pickle isn't slow, it's a protocol]."
-This would however require extensive work to refactor the entire SaveModel
+This would however require extensive work to refactor the entire `SaveModel`
 ecosystem to allow the user to specify a file-like object instead of only a
 folder name.
 
