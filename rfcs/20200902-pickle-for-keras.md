@@ -13,28 +13,27 @@ Implement support for Python's Pickle protocol within Keras.
 
 ## Motivation
 
-> *Why this is a valuable problem to solve? What background information is needed
-to show how this design addresses the problem?*
+> *Why this is a valuable problem to solve? What background information is
+> needed to show how this design addresses the problem?*
 
-The specific motivation for this RFC: we want to use Keras models in
-Dask-ML's and Ray's hyperparameter optimization. More generaly, support for
-serialization with the Pickle protocol will enable:
+The specific motivation for this RFC: we want to use Keras models in Dask-ML's
+and Ray's hyperparameter optimization. More generaly, support for serialization
+with the Pickle protocol will enable:
 
 * Using Keras with other parallelization libraries like Python's
   `multiprocessing`, Dask, Ray or IPython parallel.
-* Saving Keras models to disk with custom serialization libraries like Joblib or
-  Dill. This is common when using a Keras model as part of a
-  Scikit-Learn pipeline or with their hyperparameter searches.
+* Saving Keras models to disk with custom serialization libraries like Joblib
+  or Dill. This is common when using a Keras model as part of a Scikit-Learn
+  pipeline or with their hyperparameter searches.
 * Copying Keras models with Python's built-in `copy.deepcopy`.
 
-Supporting Pickle will enable wider usage in the Python ecosystem. Ecosystems
-of libraries depend strongly on the presence of protocols, and a strong
-consensus around implementing them consistently and efficiently. See "[Pickle
-isn't slow, it's a protocol]" for more detail (notably, this post focuses on
-having an efficent Pickle implementation for PyTorch). Without these protocols,
-it's necessary for each library to implement a custom serialization method
-(e.g, Dask Distributed has a custom serialization method for Keras at
-[distributed/protocol/keras.py])
+Supporting Pickle will enable wider usage in the Python ecosystem because
+ecosystems of libraries depend strongly on the presence of protocols. See
+"[Pickle isn't slow, it's a protocol]" for more detail (notably, this post
+focuses on having an efficent Pickle implementation for PyTorch). Without these
+protocols, it's necessary for each library to implement a custom serialization
+method. For example, Dask Distributed has a custom serialization method for
+Keras at [distributed/protocol/keras.py].
 
 [distributed/protocol/keras.py]:https://github.com/dask/distributed/blob/73fa9bd1bd7dcb4ceed72cdbdc6dd4b92f887521/distributed/protocol/keras.py
 
@@ -43,15 +42,17 @@ Keras models. We believe the efficient, secure and stable methods in TF should
 be used for that. Instead, we are proposing to add a Pickle implementation to
 support wider usage in the Python ecosystem.
 
-[Pickle isn't slow, it's a protocol]:https://matthewrocklin.com/blog/work/2018/07/23/protocols-pickle
+[Pickle isn't slow, it's a
+protocol]:https://matthewrocklin.com/blog/work/2018/07/23/protocols-pickle
 
-> *Which users are affected by the problem? Why is it a problem? What data supports
-this? What related work exists?*
+> *Which users are affected by the problem? Why is it a problem? What data
+> supports this? What related work exists?*
 
-Users trying to use distributed systems (e.g, Ray or Dask) with Keras are 
+Users trying to use distributed systems (e.g, Ray or Dask) with Keras are
 affected. In our experience, this is common in hyperparameter optimization.  In
 general, having Pickle support means a better experience, especially when using
-Keras with other libraries. Briefly, implementation of this RFC will make the following possible:
+Keras with other libraries. Briefly, implementation of this RFC will make the
+following possible:
 
 * Saving a Scikit-Learn pipeline to disk if it includes a Keras model
 * Using custom parallelization like Joblib or Dask.
