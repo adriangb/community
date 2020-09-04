@@ -42,8 +42,7 @@ Keras models. We believe the efficient, secure and stable methods in TF should
 be used for that. Instead, we are proposing to add a Pickle implementation to
 support wider usage in the Python ecosystem.
 
-[Pickle isn't slow, it's a
-protocol]:https://matthewrocklin.com/blog/work/2018/07/23/protocols-pickle
+[Pickle isn't slow, it's a protocol]:https://blog.dask.org/2018/07/23/protocols-pickle
 
 > *Which users are affected by the problem? Why is it a problem? What data
 > supports this? What related work exists?*
