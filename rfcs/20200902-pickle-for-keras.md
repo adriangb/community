@@ -1,4 +1,4 @@
-# Support Pickle, Python's serialization protocol
+# Support for Pickle, Python's serialization protocol
 
 | Status        | Proposed       |
 :-------------- |:---------------------------------------------------- |
@@ -9,7 +9,7 @@
 
 ## Objective
 
-Implement support for Python's Pickle protocol within Keras.
+Implement support for Pickle, Python's serialization protocol within Keras.
 
 ## Motivation
 
@@ -92,8 +92,12 @@ Examples that could be resolved using `Model.save` (but the user tried pickle fi
 
 > How will users (or other contributors) benefit from this work? What would be the headline in the release notes or blog post?
 
-One blog post headline: "Keras models can be used with the advanced 
-hyperparameter optimization techniques found in Dask-ML and Ray Tune."
+One blog post headline: "Keras models can be used with the advanced
+hyperparameter optimization techniques found in Dask-ML and Ray Tune." This has
+already been mentioned in "Framework support" of [a Dask blog post][dbp]
+comparing Dask-ML's hyperparameter optimization with Ray's tune-sklearn.
+
+[dbp]:https://blog.dask.org/2020/08/06/ray-tune#framework-support
 
 Users will also benefit with easier usage; they won't run into any of these
 errors:
