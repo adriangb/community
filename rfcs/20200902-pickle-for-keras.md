@@ -1,4 +1,4 @@
-# Implement Python's Pickle Protocol
+# Support Pickle, Python's serialization protocol
 
 | Status        | Proposed       |
 :-------------- |:---------------------------------------------------- |
