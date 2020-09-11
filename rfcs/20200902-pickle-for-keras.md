@@ -156,21 +156,19 @@ from tf.keras.models import load_model
 class Model:
     ...
   def __reduce__(self, protocol):
-    save_folder = f"tmp/saving/{id(self)}"
-    ram_prefix = "ram://"
-    temp_ram_location = os.path.join(ram_prefix, save_folder)
-    self.save(temp_ram_location)
-    b = tf.io.gfile.read_folder(temp_ram_location)
+    self.save(f"ram://tmp/saving/{id(self)")
+    b = tf.io.gfile.read_folder(f"ram://tmp/saving/{id(self)")
     return self._reconstruct_pickle, (np.asarray(memoryview(b)), )
 
   @classmethod
   def _reconstruct_pickle(cls, obj):
-    save_folder = f"tmp/saving/{id(obj)}"
-    ram_prefix = "ram://"
-    temp_ram_location = os.path.join(ram_prefix, save_folder)
-    tf.io.gfile.write_folder(temp_ram_location, b)
+    tf.io.gfile.write_folder(f"ram://tmp/saving/{id(obj)", b)
     return load_model(temp_ram_location)
 ```
+
+By wrapping the pickled object within a `Numpy` array, pickling will support
+pickle protocol 5 for zero-copy pickling. This provides an immediate
+performance improvement for many use cases.
 
 This almost exactly mirrors the PyTorch implementation of Pickle support in [pytorch#9184]
 as mentioned in "[Pickle isn't slow, it's a protocol]."
