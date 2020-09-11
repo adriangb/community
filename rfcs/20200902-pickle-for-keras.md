@@ -147,42 +147,35 @@ m2 = pickle.loads(pickle.dumps(m1))
 assert m1 == m2  # TODO: or some other check
 ```
 
-For more complex objects like `tf.keras.Model`, there are two options with `__reduce__`:
-
-1. Implement a similar approach that saves the weights and
-   config separately ([notebook example]).
-2. Use `Model.save` as the backend.
-
-Option (1) is similar to Dask Distributed's custom serialization of Keras models in [distributed/protocol/keras.py]. Option 2 would require implementing support for
-serializing to memory in `Model.save`.
-
-Option (2) is preferred because it seems to be a better solution
-since `Model.save` is the recommended method for model persistence.
-It would look something like the following, if `Model.save` worked
-with `io.BytesIO()`:
-   
-[notebook example]:https://colab.research.google.com/drive/14ECRN8ZQDa1McKri2dctlV_CaPkE574I?authuser=1#scrollTo=qlXDfJObNXVf
-
+For `tf.keras.Model`, we can use `SaveModel` as the backend for `__reduce__`:
 
 ``` python
-# tensorflow/python/.../model.py  TODO make sure correct
-import io
+# tensorflow/python/.../training.py
 from tf.keras.models import load_model
 
 class Model:
     ...
+  def __reduce__(self, protocol):
+    save_folder = f"tmp/saving/{id(self)}"
+    ram_prefix = "ram://"
+    temp_ram_location = os.path.join(ram_prefix, save_folder)
+    self.save(temp_ram_location)
+    b = tf.io.gfile.read_folder(temp_ram_location)
+    return self._reconstruct_pickle, (np.asarray(memoryview(b)), )
 
-    def __reduce__(self):
-        b = io.BytesIO()
-        self.save(b)
-        return load_model, (b.get_value(), )
+  @classmethod
+  def _reconstruct_pickle(cls, obj):
+    save_folder = f"tmp/saving/{id(obj)}"
+    ram_prefix = "ram://"
+    temp_ram_location = os.path.join(ram_prefix, save_folder)
+    tf.io.gfile.write_folder(temp_ram_location, b)
+    return load_model(temp_ram_location)
 ```
 
 This almost exactly mirrors the PyTorch implementation of Pickle support in [pytorch#9184]
 as mentioned in "[Pickle isn't slow, it's a protocol]."
-This would however require extensive work to refactor the entire `SaveModel`
-ecosystem to allow the user to specify a file-like object instead of only a
-folder name.
+
+Small augmentations to TensorFlow's `io` module would be required, as discussed in [tensorflow#39609].
 
 [pytorch#9184]:https://github.com/pytorch/pytorch/pull/9184
 
