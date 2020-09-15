@@ -157,12 +157,12 @@ class Model:
     ...
   def __reduce__(self, protocol):
     self.save(f"ram://tmp/saving/{id(self)")
-    b = tf.io.gfile.read_folder(f"ram://tmp/saving/{id(self)")
+    b = tf.io.gfile.read_folder(f"ram://tmp/saving/{id(self)}")
     return self._reconstruct_pickle, (np.asarray(memoryview(b)), )
 
   @classmethod
   def _reconstruct_pickle(cls, obj):
-    tf.io.gfile.write_folder(f"ram://tmp/saving/{id(obj)", b)
+    tf.io.gfile.write_folder(f"ram://tmp/saving/{id(obj)}", b)
     return load_model(temp_ram_location)
 ```
 
