@@ -135,17 +135,8 @@ class NewMetric(Metric):
 This implementation adds support for the Pickle protocol, which supports serialization
 to arbitrary IO, either memory or disk. The `__reduce_ex__` special method can return
 the string that would have been written to disk and the function to load that string into memory ([docs][reduce_docs]).
-Now, the tests pass with `NewMetric`:
 
 [reduce_docs]:https://docs.python.org/3/library/pickle.html#object.__reduce_ex__
-
-``` python
-import pickle
-m1 = NewMetric()  # TODO: is this correct?
-
-m2 = pickle.loads(pickle.dumps(m1))
-assert m1 == m2  # TODO: or some other check
-```
 
 For `tf.keras.Model`, we can use `SaveModel` as the backend for `__reduce_ex__`:
 
