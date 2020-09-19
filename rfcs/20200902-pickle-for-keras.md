@@ -150,11 +150,9 @@ assert m1 == m2  # TODO: or some other check
 For `tf.keras.Model`, we can use `SaveModel` as the backend for `__reduce_ex__`:
 
 ``` python
-# tensorflow/python/.../training.py
 from tf.keras.models import load_model
 
-class Model:
-    ...
+class NewModel(Model):
   def __reduce_ex__(self, protocol):
     self.save(f"ram://tmp/saving/{id(self)")
     b = tf.io.gfile.read_folder(f"ram://tmp/saving/{id(self)}")
@@ -166,14 +164,13 @@ class Model:
     return load_model(temp_ram_location)
 ```
 
+Small augmentations to TensorFlow's `io` module would be required, as discussed in [tensorflow#39609].
+
 By wrapping the pickled object within a `Numpy` array, pickling will support
 pickle protocol 5 for zero-copy pickling. This provides an immediate
-performance improvement for many use cases.
-
-This almost exactly mirrors the PyTorch implementation of Pickle support in [pytorch#9184]
+performance improvement for many use cases. This almost exactly mirrors the PyTorch
+implementation of Pickle support in [pytorch#9184]
 as mentioned in "[Pickle isn't slow, it's a protocol]."
-
-Small augmentations to TensorFlow's `io` module would be required, as discussed in [tensorflow#39609].
 
 [pytorch#9184]:https://github.com/pytorch/pytorch/pull/9184
 
