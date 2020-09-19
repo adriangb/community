@@ -154,13 +154,15 @@ class Model(base_layer.Layer, version_utils.ModelVersionSelector):  # line 131
   ...
 
   def __reduce_ex__(self, protocol):
-    self.save(f"ram://tmp/saving/{id(self)")
-    b = tf.io.gfile.read_folder(f"ram://tmp/saving/{id(self)}")
+    temp_ram_location = f"ram://tmp/saving/{id(self)}"
+    self.save(temp_ram_location)
+    b = tf.io.gfile.read_folder(temp_ram_location)
     return self._reconstruct_pickle, (np.asarray(memoryview(b)), )
 
   @classmethod
   def _reconstruct_pickle(cls, obj):
-    tf.io.gfile.write_folder(f"ram://tmp/saving/{id(obj)}", b)
+    temp_ram_location = f"ram://tmp/saving/{id(obj)}"
+    tf.io.gfile.write_folder(temp_ram_location, b)
     return load_model(temp_ram_location)
 ```
 
