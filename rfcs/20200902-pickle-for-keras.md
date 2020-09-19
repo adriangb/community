@@ -125,10 +125,15 @@ saving functionality as a backend. For example, adding pickle support to TF Metr
 is as simple as the following:
 
 ``` python
-from tf.keras.metrics import Metric, serialize, deserialize
+# tensorflow/python/keras/metrics.py
 
-class NewMetric(Metric):
+@keras_export('keras.metrics.Metric')  # line 80
+@six.add_metaclass(abc.ABCMeta)
+class Metric(base_layer.Layer):
+    ...
+
     def __reduce_ex__(self, protocol):
+        # the deserialized/serialize functions are defined in this file
         return deserialize, (serialize(self),)
 ```
 
