@@ -132,9 +132,9 @@ is as simple as the following:
 class Metric(base_layer.Layer):
     ...
 
-    def __reduce_ex__(self, protocol):
-        # the deserialized/serialize functions are defined in this file
-        return deserialize, (serialize(self),)
+  def __reduce_ex__(self, protocol):
+    # the deserialized/serialize functions are defined in this file
+    return deserialize, (serialize(self),)
 ```
 
 This implementation adds support for the Pickle protocol, which supports serialization
@@ -146,9 +146,13 @@ the string that would have been written to disk and the function to load that st
 For `tf.keras.Model`, we can use `SaveModel` as the backend for `__reduce_ex__`:
 
 ``` python
-from tf.keras.models import load_model
+# tensorflow/python/keras/engine/training.py
+...
+from tesorflow.python.keras.models import load_model
 
-class NewModel(Model):
+class Model(base_layer.Layer, version_utils.ModelVersionSelector):  # line 131
+  ...
+
   def __reduce_ex__(self, protocol):
     self.save(f"ram://tmp/saving/{id(self)")
     b = tf.io.gfile.read_folder(f"ram://tmp/saving/{id(self)}")
@@ -160,7 +164,7 @@ class NewModel(Model):
     return load_model(temp_ram_location)
 ```
 
-Small augmentations to TensorFlow's `io` module would be required, as discussed in [tensorflow#39609].
+Small augmentations to TensorFlow's IO module would be required, as discussed in [tensorflow#39609].
 
 By wrapping the pickled object within a `Numpy` array, pickling will support
 pickle protocol 5 for zero-copy pickling. This provides an immediate
