@@ -164,13 +164,15 @@ class Model(base_layer.Layer, version_utils.ModelVersionSelector):  # line 131
     return load_model(temp_ram_location)
 ```
 
-Small augmentations to TensorFlow's IO module would be required, as discussed in [tensorflow#39609].
 
-By wrapping the pickled object within a `Numpy` array, pickling will support
-pickle protocol 5 for zero-copy pickling. This provides an immediate
-performance improvement for many use cases. This almost exactly mirrors the PyTorch
+This almost exactly mirrors the PyTorch
 implementation of Pickle support in [pytorch#9184]
 as mentioned in "[Pickle isn't slow, it's a protocol]."
+In addition, small augmentations to TensorFlow's IO module will be required (as discussed in [tensorflow#39609]).
+
+By wrapping the pickled object within a Numpy array, pickling will support
+pickle protocol 5 for zero-copy pickling. This provides an immediate
+performance improvement for many use cases. 
 
 [pytorch#9184]:https://github.com/pytorch/pytorch/pull/9184
 
