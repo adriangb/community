@@ -60,7 +60,7 @@ More use cases and examples are give in "User Benefit."
 
 Related work is in [SciKeras], which brings a Scikit-Learn API
 to Keras. Pickle is relevant because Scikit-Learn requires that estimators must be able to be pickled ([source][skp]).
-As such, SciKeras has an implementation of `__reduce_ex__`, which is also in
+As such, SciKeras has an implementation of `__reduce__`, which is also in
 [tensorflow#39609].
   
 [dask-ml#534]:https://github.com/dask/dask-ml/issues/534
@@ -132,18 +132,18 @@ is as simple as the following:
 class Metric(base_layer.Layer):
     ...
 
-  def __reduce_ex__(self, protocol):
+  def __reduce__(self, protocol):
     # the deserialized/serialize functions are defined in this file
     return deserialize, (serialize(self),)
 ```
 
 This implementation adds support for the Pickle protocol, which supports serialization
-to arbitrary IO, either memory or disk. The `__reduce_ex__` special method can return
+to arbitrary IO, either memory or disk. The `__reduce__` special method can return
 the string that would have been written to disk and the function to load that string into memory ([docs][reduce_docs]).
 
-[reduce_docs]:https://docs.python.org/3/library/pickle.html#object.__reduce_ex__
+[reduce_docs]:https://docs.python.org/3/library/pickle.html#object.__reduce__
 
-For `tf.keras.Model`, we can use `SaveModel` as the backend for `__reduce_ex__`:
+For `tf.keras.Model`, we can use `SaveModel` as the backend for `__reduce__`:
 
 ``` python
 # tensorflow/python/keras/engine/training.py
@@ -153,7 +153,7 @@ from tesorflow.python.keras.models import load_model
 class Model(base_layer.Layer, version_utils.ModelVersionSelector):  # line 131
   ...
 
-  def __reduce_ex__(self, protocol):
+  def __reduce__(self, protocol):
     temp_ram_location = f"ram://tmp/saving/{id(self)}"
     self.save(temp_ram_location)
     b = tf.io.gfile.read_folder(temp_ram_location)
